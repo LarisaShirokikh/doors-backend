@@ -1,0 +1,94 @@
+.
+├── .env
+├── alembic
+│   ├── env.py
+│   ├── README
+│   ├── script.py.mako
+│   └── versions
+│       ├── 1294602acdc9_first_table.py
+│       ├── 572183a9b6b4_first_table.py
+│       ├── a54ce09d58e6_first_table.py
+│       ├── adc102f2a80f_first_table.py
+│       ├── eddb5e91a8c3_first_table.py
+│       └── fb3f9f33c194_first_table.py
+├── alembic.ini
+├── app
+│   ├── __init__.py
+│   ├── api
+│   │   └── v1
+│   │       ├── __init__.py
+│   │       ├── catalogs
+│   │       │   └── router.py
+│   │       ├── categories
+│   │       │   └── router.py
+│   │       ├── home
+│   │       │   └── router.py
+│   │       ├── import_l
+│   │       │   └── router.py
+│   │       ├── import_r
+│   │       │   └── router.py
+│   │       ├── manufacturers
+│   │       │   └── router.py
+│   │       ├── products
+│   │       │   └── router.py
+│   │       └── router.py
+│   ├── cashe
+│   │   └── redis_cashe.py
+│   ├── core
+│   │   ├── config.py
+│   │   └── database.py
+│   ├── crud
+│   │   ├── banner.py
+│   │   ├── catalogs.py
+│   │   ├── categories.py
+│   │   ├── import_log.py
+│   │   ├── import_service.py
+│   │   ├── manufacturers.py
+│   │   ├── product.py
+│   │   └── promotion.py
+│   ├── deps.py
+│   ├── main.py
+│   ├── models
+│   │   ├── __init__.py
+│   │   ├── banner.py
+│   │   ├── catalog.py
+│   │   ├── category.py
+│   │   ├── import_log.py
+│   │   ├── manufacturer.py
+│   │   ├── product_image.py
+│   │   ├── product.py
+│   │   └── promotion.py
+│   ├── schemas
+│   │   ├── banner.py
+│   │   ├── catalog.py
+│   │   ├── category.py
+│   │   ├── home.py
+│   │   ├── import_log.py
+│   │   ├── manufacturer.py
+│   │   ├── product_image.py
+│   │   ├── product.py
+│   │   └── promotion.py
+│   ├── services
+│   │   ├── catalogs.py
+│   │   ├── categories.py
+│   │   ├── import_service.py
+│   │   ├── manufacturers.py
+│   │   └── products.py
+│   ├── tasks
+│   │   ├── product_tasks.py
+│   │   └── worker.py
+│   └── utils
+│       ├── helpers.py
+│       └── image_utils.py
+├── docker-compose.yml
+├── Dockerfile
+├── media
+├── nginx
+│   └── nginx.conf
+├── poetry.lock
+├── pyproject.toml
+├── README.md
+├── static
+└── structure.txt
+
+24 directories, 68 files
