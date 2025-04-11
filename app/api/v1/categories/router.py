@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_db
 from app.crud.categories import categories as categories_crud
 from app.schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
+from app.schemas.product import ProductCreate
+from app.services.products import auto_categorize_product
 
 router = APIRouter()
 
@@ -48,6 +50,9 @@ async def get_popular_categories(
     """
     categories = await categories_crud.get_categories(db, limit=limit)  # Уже список Pydantic моделей
 
-   # Преобразуем в формат, который ожидает фронтенд
-    print("🔥 categories:", categories)
     return categories
+
+@router.post("/auto-category/")
+async def predict_category(product: ProductCreate):
+    category = await auto_categorize_product(product)
+    return {"predicted_category": category}
