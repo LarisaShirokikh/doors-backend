@@ -38,7 +38,7 @@ async def read_category(
     category = await categories_crud.get_category(db, category_id=category_id)
     if category is None:
         raise HTTPException(status_code=404, detail="Категория не найдена")
-    return category  # Уже Pydantic модель
+    return category
 
 @router.get("/popular/", response_model=List[CategoryRead])
 async def get_popular_categories(
@@ -48,7 +48,7 @@ async def get_popular_categories(
     """
     Получить популярные категории
     """
-    categories = await categories_crud.get_categories(db, limit=limit)  # Уже список Pydantic моделей
+    categories = await categories_crud.get_categories(db, limit=limit)
 
     return categories
 

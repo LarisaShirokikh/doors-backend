@@ -4,7 +4,6 @@ from pydantic import BaseModel
 class CategoryBase(BaseModel):
     name: str
     manufacturer_id: int
-    image_url: Optional[str] = None
 
 class CategoryCreate(CategoryBase):
     pass
