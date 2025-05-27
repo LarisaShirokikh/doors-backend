@@ -1,5 +1,7 @@
 .
+├── .DS_Store
 ├── .env
+├── .gitignore
 ├── alembic
 │   ├── env.py
 │   ├── README
@@ -14,6 +16,7 @@
 ├── alembic.ini
 ├── app
 │   ├── __init__.py
+│   ├── .DS_Store
 │   ├── api
 │   │   └── v1
 │   │       ├── __init__.py
@@ -31,7 +34,10 @@
 │   │       │   └── router.py
 │   │       ├── products
 │   │       │   └── router.py
-│   │       └── router.py
+│   │       ├── router.py
+│   │       ├── schemas_transformer.py
+│   │       └── tips
+│   │           └── router.py
 │   ├── cashe
 │   │   └── redis_cashe.py
 │   ├── core
@@ -45,39 +51,53 @@
 │   │   ├── import_service.py
 │   │   ├── manufacturers.py
 │   │   ├── product.py
-│   │   └── promotion.py
-│   ├── deps.py
+│   │   ├── promotion.py
+│   │   └── tip.py
 │   ├── main.py
+│   ├── ml
+│   │   ├── __init__.py
+│   │   ├── classifier.py
+│   │   ├── train_data.csv
+│   │   ├── train.py
+│   │   └── utils.py
 │   ├── models
 │   │   ├── __init__.py
-│   │   ├── banner.py
+│   │   ├── attributes.py
+│   │   ├── brand.py
 │   │   ├── catalog.py
-│   │   ├── category.py
+│   │   ├── categories.py
+│   │   ├── content.py
 │   │   ├── import_log.py
 │   │   ├── manufacturer.py
 │   │   ├── product_image.py
 │   │   ├── product.py
-│   │   └── promotion.py
+│   │   ├── reviews.py
+│   │   └── user.py
 │   ├── schemas
+│   │   ├── __init__.py
+│   │   ├── attributes.py
 │   │   ├── banner.py
+│   │   ├── brand.py
 │   │   ├── catalog.py
 │   │   ├── category.py
+│   │   ├── common.py
+│   │   ├── content.py
+│   │   ├── filter.py
 │   │   ├── home.py
 │   │   ├── import_log.py
 │   │   ├── manufacturer.py
 │   │   ├── product_image.py
 │   │   ├── product.py
-│   │   └── promotion.py
+│   │   ├── promotion.py
+│   │   ├── review.py
+│   │   └── user.py
 │   ├── services
-│   │   ├── catalogs.py
-│   │   ├── categories.py
-│   │   ├── import_service.py
-│   │   ├── manufacturers.py
 │   │   └── products.py
 │   ├── tasks
 │   │   ├── product_tasks.py
 │   │   └── worker.py
 │   └── utils
+│       ├── converters.py
 │       ├── helpers.py
 │       └── image_utils.py
 ├── docker-compose.yml
@@ -91,4 +111,4 @@
 ├── static
 └── structure.txt
 
-24 directories, 68 files
+26 directories, 86 files

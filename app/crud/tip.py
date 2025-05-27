@@ -1,8 +1,8 @@
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models.tip import Tip
-from app.schemas.tip import TipCreate, TipRead
+from app.models.content import Tip
+from app.schemas.content import TipCreate
 
 
 class TipCRUD:

@@ -1,15 +1,18 @@
 
 import logging
-from sqlalchemy import desc, select, inspect, or_
+from typing import Any, Dict, List, Optional
+from sqlalchemy import desc, func, select, inspect, or_
+from sqlalchemy.dialects.postgresql import INTERVAL, INTEGER
+from sqlalchemy import Tuple as SqlTuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from app.api.v1.schemas_transformer import transform_product_async, transform_products_async
 from app.models import Product, ProductImage
 from app.models.catalog import Catalog
-from app.models.categories import Category
-from app.models.manufacturer import Manufacturer
+from app.models.category import Category
 from app.schemas.product import ProductCreate
 from app.schemas.product_image import ProductImageCreate
+from app.models.attributes import product_category
 
 class ProductCRUD:
     def __init__(self):
@@ -329,5 +332,218 @@ class ProductCRUD:
         # Преобразуем список продуктов в нужный формат
         return await transform_products_async(products, db)
 
+    async def get_products_by_catalog(
+        self,  # Add self parameter
+        db: AsyncSession,
+        catalog_id: int,
+        offset: int,
+        limit: int
+    ) -> List[Product]:
+        query = select(Product).options(
+            joinedload(Product.product_images),
+            joinedload(Product.brand)
+        ).where(
+            (Product.catalog_id == catalog_id) &
+            (Product.is_active == True)
+        ).order_by(
+            desc(Product.popularity_score)
+        ).offset(offset).limit(limit)
+        
+        result = await db.execute(query)
+        return result.unique().scalars().all()
+
+    async def get_products_by_category(
+        self,
+        db: AsyncSession,
+        category_id: int,
+        page: int = 1,
+        per_page: int = 20,
+        sort_by: str = "smart_rank",  # Новый вариант сортировки по умолчанию
+        sort_order: str = "desc",
+        price_range: Optional[tuple[float, float]] = None,
+        in_stock_only: bool = False
+    ):
+        """
+        Получить продукты для категории по ID с интеллектуальной сортировкой и фильтрацией
+        """
+        try:
+            # Проверяем существование категории
+            category_query = select(Category).where(Category.id == category_id)
+            category_result = await db.execute(category_query)
+            category = category_result.scalar_one_or_none()
+            
+            if not category:
+                self.logger.warning(f"Категория с ID {category_id} не найдена")
+                return None  # Категория не найдена
+            
+            # Базовый запрос продуктов из этой категории
+            products_query = select(Product).options(
+                joinedload(Product.product_images),
+                joinedload(Product.brand)
+            ).join(
+                product_category
+            ).where(
+                product_category.c.category_id == category_id
+            )
+            
+            # Применяем дополнительные фильтры
+            if in_stock_only:
+                products_query = products_query.where(Product.in_stock == True)
+                
+            if price_range:
+                min_price, max_price = price_range
+                if min_price is not None:
+                    products_query = products_query.where(Product.price >= min_price)
+                if max_price is not None:
+                    products_query = products_query.where(Product.price <= max_price)
+            
+            in_stock_int = func.coalesce(
+                func.nullif(Product.in_stock == True, False), 
+                0
+            ).cast(INTEGER)
+            # Создаем интеллектуальный рейтинг для сортировки
+            smart_rank = (
+                # Популярность как основа (0-100)
+                (Product.popularity_score * 0.5) +
+                # Рейтинг товара (обычно 0-5)
+                (Product.rating * 10 * 0.3) +
+                # Количество отзывов (нормализуем до 0-10)
+                (func.least(Product.review_count, 50) / 5 * 0.1) +
+                # Бонус для товаров в наличии
+                (in_stock_int * 10 * 0.1)
+            ).label('smart_rank')
+            
+            # Применяем сортировку
+            if sort_by == "smart_rank":
+                products_query = products_query.add_columns(smart_rank)
+                products_query = products_query.order_by(
+                    desc('smart_rank') if sort_order.lower() == "desc" else 'smart_rank'
+                )
+            elif sort_by == "price":
+                products_query = products_query.order_by(
+                    desc(Product.price) if sort_order.lower() == "desc" else Product.price
+                )
+            elif sort_by == "name":
+                products_query = products_query.order_by(
+                    desc(Product.name) if sort_order.lower() == "desc" else Product.name
+                )
+            elif sort_by == "popularity":
+                products_query = products_query.order_by(
+                    desc(Product.popularity_score) if sort_order.lower() == "desc" else Product.popularity_score
+                )
+            elif sort_by == "rating":
+                products_query = products_query.order_by(
+                    desc(Product.rating) if sort_order.lower() == "desc" else Product.rating
+                )
+            elif sort_by == "created_at" and hasattr(Product, 'created_at'):
+                products_query = products_query.order_by(
+                    desc(Product.created_at) if sort_order.lower() == "desc" else Product.created_at
+                )
+            else:
+                # Если указанный столбец не существует или не указан, используем smart_rank
+                self.logger.warning(f"Столбец {sort_by} не распознан, используем smart_rank")
+                products_query = products_query.add_columns(smart_rank)
+                products_query = products_query.order_by(desc('smart_rank'))
+                
+            # Считаем общее количество товаров с учетом фильтров
+            count_query = select(func.count()).select_from(products_query.subquery())
+            count_result = await db.execute(count_query)
+            total = count_result.scalar() or 0
+            
+            # Применяем пагинацию
+            products_query = products_query.offset((page - 1) * per_page).limit(per_page)
+            
+            # Выполняем запрос
+            result = await db.execute(products_query)
+            
+            # Определяем, использовалась ли умная сортировка с дополнительным полем
+            has_smart_rank = sort_by == "smart_rank" or (sort_by not in ["price", "name", "created_at", "popularity", "rating"])
+            
+            # Обрабатываем результаты соответственно
+            if has_smart_rank:
+                product_results = result.unique().all()
+            else:
+                product_results = result.unique().scalars().all()
+            
+            # Формируем список продуктов
+            products_list = []
+            for product_item in product_results:
+                if has_smart_rank:
+                    # Если использовалась умная сортировка, первый элемент - это объект Product
+                    product = product_item[0]
+                else:
+                    # Иначе уже получили объект Product напрямую
+                    product = product_item
+                
+                # Находим основное изображение
+                main_image = None
+                if hasattr(product, 'product_images') and product.product_images:
+                    for image in product.product_images:
+                        if image.is_main:
+                            main_image = image.url
+                            break
+                    
+                    if not main_image and product.product_images:
+                        main_image = product.product_images[0].url
+                
+                # Формируем основные данные товара
+                product_dict = {
+                    "id": product.id,
+                    "name": product.name,
+                    "slug": product.slug if hasattr(product, 'slug') else None,
+                    "price": float(product.price) if hasattr(product, 'price') else 0.0,
+                    "in_stock": product.in_stock,
+                    "rating": product.rating,
+                    "review_count": product.review_count
+                }
+                
+                # Добавляем опциональные поля
+                if hasattr(product, 'discount_price') and product.discount_price:
+                    product_dict["discount_price"] = float(product.discount_price)
+                    # Вычисляем процент скидки
+                    discount_percent = round((1 - (product.discount_price / product.price)) * 100)
+                    product_dict["discount_percent"] = discount_percent
+                else:
+                    product_dict["discount_price"] = None
+                    
+                product_dict["image"] = main_image
+                
+                if hasattr(product, 'brand') and product.brand:
+                    product_dict["brand"] = product.brand.name
+                else:
+                    product_dict["brand"] = None
+                
+                products_list.append(product_dict)
+            
+            # Рассчитываем количество страниц
+            pages = (total + per_page - 1) // per_page if total > 0 else 0
+            
+            self.logger.info(f"Получено {len(products_list)} продуктов для категории {category_id}, всего: {total}, страниц: {pages}")
+            
+            return {
+                "items": products_list,
+                "total": total,
+                "pages": pages,
+                "page": page,
+                "sort": sort_by,
+                "order": sort_order
+            }
+        except Exception as e:
+            self.logger.error(f"Ошибка при получении продуктов для категории {category_id}: {str(e)}", exc_info=True)
+            raise
+    
+    # Also fix the count_products_in_catalog method
+    async def count_products_in_catalog(
+        self,  # Add self parameter
+        db: AsyncSession,
+        catalog_id: int
+    ) -> int:
+        count_query = select(func.count()).select_from(Product).where(
+            (Product.catalog_id == catalog_id) &
+            (Product.is_active == True)
+        )
+        result = await db.execute(count_query)
+        return result.scalar() or 0
+    
 # Создаем экземпляр CRUD для использования в приложении
 product = ProductCRUD()

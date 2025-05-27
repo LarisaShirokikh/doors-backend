@@ -1,13 +1,16 @@
-# app/schemas/promotion.py
 from pydantic import BaseModel
-from typing import Optional
 
-class PromotionRead(BaseModel):
-    id: int
+class PromotionBase(BaseModel):
     title: str
-    description: Optional[str] = None
-    image: str
-    url: Optional[str] = None
+    description: str | None = None
+    image: str | None = None
+    url: str | None = None
+
+class PromotionCreate(PromotionBase):
+    pass  # Используется, если когда-либо понадобится создавать через API
+
+class Promotion(PromotionBase):
+    id: int
 
     class Config:
         from_attributes = True

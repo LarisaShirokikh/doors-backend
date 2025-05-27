@@ -1,9 +1,9 @@
+# app/schemas/product_image.py (если еще не создан)
 from typing import Optional
 from pydantic import BaseModel
 
 class ProductImageBase(BaseModel):
     url: str
-    alt_text: Optional[str] = None
     is_main: bool = False
 
 class ProductImageCreate(ProductImageBase):
@@ -11,12 +11,11 @@ class ProductImageCreate(ProductImageBase):
 
 class ProductImageUpdate(BaseModel):
     url: Optional[str] = None
-    alt_text: Optional[str] = None
     is_main: Optional[bool] = None
 
-class ProductImageRead(ProductImageBase):
+class ProductImage(ProductImageBase):
     id: int
     product_id: int
 
     class Config:
-        from_attributes = True
+        orm_mode = True

@@ -5,7 +5,7 @@ from sqlalchemy.sql import desc
 from app.models.categories import Category
 from app.models.product import Product
 from app.models.catalog import Catalog
-from app.schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
+from app.schemas.category import CategoryBase, CategoryCreate, CategoryUpdate
 
 class CategoriesCRUD:
     async def get_categories(
@@ -14,7 +14,7 @@ class CategoriesCRUD:
         skip: int = 0, 
         limit: int = 100,
         manufacturer_id: Optional[int] = None
-    ) -> List[CategoryRead]:
+    ) -> List[CategoryBase]:
         """
         Получить список категорий с фильтрацией по производителю
         """
@@ -26,9 +26,9 @@ class CategoriesCRUD:
         result = await db.execute(query.offset(skip).limit(limit))
         categories = result.scalars().all()
         print("🔥 categories:", categories)
-        return [CategoryRead.model_validate(category) for category in categories]
+        return [CategoryBase.model_validate(category) for category in categories]
 
-    async def get_category(self, db: AsyncSession, category_id: int) -> Optional[CategoryRead]:
+    async def get_category(self, db: AsyncSession, category_id: int) -> Optional[CategoryBase]:
         """
         Получить категорию по ID
         """
@@ -37,10 +37,10 @@ class CategoriesCRUD:
         category = result.scalar_one_or_none()
         
         if category:
-            return CategoryRead.model_validate(category)
+            return CategoryBase.model_validate(category)
         return None
 
-    async def create_category(self, db: AsyncSession, category: CategoryCreate) -> CategoryRead:
+    async def create_category(self, db: AsyncSession, category: CategoryCreate) -> CategoryBase:
         """
         Создать новую категорию
         """
@@ -48,9 +48,9 @@ class CategoriesCRUD:
         db.add(db_category)
         await db.commit()
         await db.refresh(db_category)
-        return CategoryRead.model_validate(db_category)
+        return CategoryBase.model_validate(db_category)
 
-    async def update_category(self, db: AsyncSession, category_id: int, category: CategoryUpdate) -> Optional[CategoryRead]:
+    async def update_category(self, db: AsyncSession, category_id: int, category: CategoryUpdate) -> Optional[CategoryBase]:
         """
         Обновить категорию
         """
@@ -68,7 +68,7 @@ class CategoriesCRUD:
         db.add(db_category)
         await db.commit()
         await db.refresh(db_category)
-        return CategoryRead.model_validate(db_category)
+        return CategoryBase.model_validate(db_category)
 
     async def delete_category(self, db: AsyncSession, category_id: int) -> bool:
         """
@@ -85,7 +85,7 @@ class CategoriesCRUD:
         await db.commit()
         return True
 
-    async def get_popular_categories(self, db: AsyncSession, limit: int = 4) -> List[CategoryRead]:
+    async def get_popular_categories(self, db: AsyncSession, limit: int = 4) -> List[CategoryBase]:
         """
         Получить популярные категории
         """
@@ -102,6 +102,8 @@ class CategoriesCRUD:
         category_counts = result.all()
         
         # Извлекаем только объекты категорий и преобразуем в Pydantic модели
-        return [CategoryRead.model_validate(item[0]) for item in category_counts]
+        return [CategoryBase.model_validate(item[0]) for item in category_counts]
+    
+    
     
 categories = CategoriesCRUD()

@@ -2,8 +2,8 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_db
-from app.schemas.import_log import ImportLogRead
 from app.crud.import_log import import_log as import_log_crud
+from app.schemas.import_log import ImportLogBase
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ async def import_products_from_excel(
     
     return import_result
 
-@router.get("/logs/", response_model=List[ImportLogRead])
+@router.get("/logs/", response_model=List[ImportLogBase])
 async def read_import_logs(
     skip: int = 0, 
     limit: int = 100, 
@@ -40,7 +40,7 @@ async def read_import_logs(
     """
     return await import_log_crud.get_import_logs(db, skip=skip, limit=limit)
 
-@router.get("/logs/{import_log_id}", response_model=ImportLogRead)
+@router.get("/logs/{import_log_id}", response_model=ImportLogBase)
 async def read_import_log(import_log_id: int, db: AsyncSession = Depends(get_async_db),):
     """
     Получить детальную информацию о логе импорта по ID

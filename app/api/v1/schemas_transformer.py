@@ -26,7 +26,6 @@ async def transform_product_async(product_db, db: Optional[AsyncSession] = None)
     # Безопасное получение связанных данных без lazy loading
     if db and hasattr(product_db, 'catalog_id'):
         from app.models.catalog import Catalog
-        from app.models.categories import Category
         
         # Получаем каталог с присоединенной категорией
         stmt = select(Catalog).options(

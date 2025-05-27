@@ -16,9 +16,7 @@ RUN pip install --no-cache-dir poetry
 # Копируем только файлы, необходимые для установки зависимостей
 COPY pyproject.toml /app/
 
-# Генерируем файл poetry.lock, если его нет
 RUN poetry config virtualenvs.create false \
-    && poetry lock \
     && poetry install --no-interaction --no-ansi --no-root
 
 # Добавляем необходимые библиотеки

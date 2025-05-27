@@ -1,29 +1,26 @@
-# app/schemas/catalog.py (обновленная версия)
+# app/schemas/brand.py
 from typing import Optional
 from pydantic import BaseModel
 
-class CatalogBase(BaseModel):
+class BrandBase(BaseModel):
     name: str
-    category_id: Optional[int] = None  
-    brand_id: Optional[int] = None 
     description: Optional[str] = None
-    image: Optional[str] = None
+    logo_url: Optional[str] = None
+    website: Optional[str] = None
     is_active: bool = True
 
-class CatalogCreate(CatalogBase):
+class BrandCreate(BrandBase):
     slug: Optional[str] = None
 
-
-class CatalogUpdate(BaseModel):
+class BrandUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
-    category_id: Optional[int] = None
-    brand_id: Optional[int] = None 
     description: Optional[str] = None
-    image: Optional[str] = None  # Добавлено поле для фото
+    logo_url: Optional[str] = None
+    website: Optional[str] = None
     is_active: Optional[bool] = None
 
-class Catalog(CatalogBase):
+class Brand(BrandBase):
     id: int
     slug: str
     created_at: Optional[str] = None

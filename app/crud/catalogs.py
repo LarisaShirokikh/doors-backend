@@ -1,8 +1,11 @@
 from typing import List, Optional
+from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 
 from app.models.catalog import Catalog
+from app.models.product import Product
 from app.schemas.catalog import CatalogCreate, CatalogUpdate
 
 class CatalogCRUD:
@@ -82,5 +85,7 @@ class CatalogCRUD:
         await db.delete(db_catalog)
         await db.commit()
         return True
+    
+    
 
 catalog = CatalogCRUD()

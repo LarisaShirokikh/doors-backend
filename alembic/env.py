@@ -1,5 +1,5 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, create_engine
 from alembic import context
 import os
 import sys
@@ -13,17 +13,21 @@ from app.models import *  # все модели
 
 # Настройки Alembic
 config = context.config
-# Используем sync-драйвер только для alembic
-config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)
+
+# 🛠️ Удаляем +asyncpg
+sync_url = settings.SQLALCHEMY_DATABASE_URI.replace("+asyncpg", "")
+config.set_main_option("sqlalchemy.url", sync_url)
 
 # Конфиг логирования
 fileConfig(config.config_file_name)
 
-# target_metadata = Base.metadata
+# Подключаем метадату
+target_metadata = Base.metadata
 
 def run_migrations_offline():
     context.configure(
-        url=settings.SQLALCHEMY_DATABASE_URI,
+        url=sync_url,
+        target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -31,15 +35,12 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_engine(sync_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
+            target_metadata=target_metadata,
             compare_type=True,
         )
 

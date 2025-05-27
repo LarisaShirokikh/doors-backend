@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud.import_log import import_log
 from app.core.database import get_async_db
-from app.schemas.import_log import ImportLogRead
+from app.schemas.import_log import ImportLogBase
 
 router = APIRouter()
 
@@ -30,7 +30,7 @@ async def import_products_from_excel(
     
     return import_result
 
-@router.get("/logs/", response_model=List[ImportLogRead])
+@router.get("/logs/", response_model=List[ImportLogBase])
 async def read_import_logs(
     db: AsyncSession = Depends(get_async_db),
     skip: int = 0, 
@@ -41,7 +41,7 @@ async def read_import_logs(
     """
     return await import_log.get_import_logs(db, skip=skip, limit=limit)
 
-@router.get("/logs/{import_log_id}", response_model=ImportLogRead)
+@router.get("/logs/{import_log_id}", response_model=ImportLogBase)
 async def read_import_log(
     import_log_id: int = Path(..., title="ID лога импорта", gt=0),
     db: AsyncSession = Depends(get_async_db),
