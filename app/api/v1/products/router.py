@@ -10,7 +10,7 @@ from app.models.product import Product
 from app.models.catalog import Catalog
 from app.models.brand import Brand
 from app.models.product_image import ProductImage
-from app.models.attributes import product_category, product_color, product_material
+from app.models.attributes import product_categories
 from app.models.category import Category
 from app.models.product_ranking import ProductRanking
 

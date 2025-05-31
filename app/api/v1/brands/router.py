@@ -8,7 +8,7 @@ from app.models.brand import Brand
 from app.models.catalog import Catalog
 from app.models.product import Product
 from app.models.category import Category
-from app.models.attributes import product_category
+from app.models.attributes import product_categories
 
 router = APIRouter()
 
@@ -116,10 +116,10 @@ async def get_brand_by_slug(
             for category in categories:
                 # Считаем количество товаров в категории данного бренда
                 cat_count_query = select(func.count()).select_from(Product).join(
-                    product_category, 
-                    Product.id == product_category.c.product_id
+                    product_categories, 
+                    Product.id == product_categories.c.product_id
                 ).where(
-                    (product_category.c.category_id == category.id) & 
+                    (product_categories.c.category_id == category.id) & 
                     (Product.brand_id == brand.id) & 
                     (Product.is_active == True)
                 )
@@ -235,7 +235,7 @@ async def get_brands_list(
 
 @router.get("/{slug}/catalogs/", response_model=List[Dict[str, Any]])
 async def get_brand_catalogs(
-    slug: str,  # ✅ Изменено с brand_id на slug
+    slug: str, 
     page: int = Query(1, ge=1),
     per_page: int = Query(12, ge=1, le=50),
     db: AsyncSession = Depends(get_async_db)

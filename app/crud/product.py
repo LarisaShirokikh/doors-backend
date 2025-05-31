@@ -12,7 +12,7 @@ from app.models.catalog import Catalog
 from app.models.category import Category
 from app.schemas.product import ProductCreate
 from app.schemas.product_image import ProductImageCreate
-from app.models.attributes import product_category
+from app.models.attributes import product_categories
 
 class ProductCRUD:
     def __init__(self):
@@ -381,9 +381,9 @@ class ProductCRUD:
                 joinedload(Product.product_images),
                 joinedload(Product.brand)
             ).join(
-                product_category
+                product_categories
             ).where(
-                product_category.c.category_id == category_id
+                product_categories.c.category_id == category_id
             )
             
             # Применяем дополнительные фильтры

@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Foreig
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
-from app.models.attributes import product_category, product_color, product_material
+from .attributes import product_categories
 
 class Product(Base):
     __tablename__ = "products"
@@ -29,23 +29,23 @@ class Product(Base):
     popularity_score = Column(Float, default=0)  # Добавлено в админку
     rating = Column(Float, default=0)  # Добавлено в админку
     review_count = Column(Integer, default=0)  # Добавлено в админку
-    attributes = Column(JSON, default=dict)  # Уже есть characteristics для этого
+    attributes = Column(JSON, default=dict)  
     meta_title = Column(String(255), nullable=True)  # Добавлено в админку
     meta_description = Column(String(500), nullable=True)  # Добавлено в админку
     meta_keywords = Column(String(255), nullable=True)  # Добавлено в админку
     created_at = Column(DateTime(timezone=True), server_default=func.now())  # Добавлено в админку
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())  # Добавлено в админку
 
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+
     # Связи
     catalog = relationship("Catalog", back_populates="products")
-    categories = relationship("Category", secondary=product_category, back_populates="products")
+    categories = relationship("Category", secondary=product_categories, back_populates="products")
     brand = relationship("Brand", back_populates="products")  # Добавлено в админку
-    colors = relationship("Color", secondary=product_color, back_populates="products")  # Добавлено в админку
-    materials = relationship("Material", secondary=product_material, back_populates="products")  # Добавлено в админку
     reviews = relationship("Review", back_populates="product", cascade="all, delete-orphan")  # Добавлено в админку
     product_images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
     product_video_items = relationship("ProductVideo", back_populates="product")
-    videos = relationship("Video", back_populates="product")
-
+    videos = relationship("Video", back_populates="product", cascade="all, delete-orphan")
+    
     def __repr__(self):
         return f"<Product {self.name}>"
