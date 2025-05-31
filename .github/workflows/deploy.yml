@@ -1,4 +1,4 @@
-name: Deploy Admin to Production
+name: Deploy Backend to Production
 
 on:
   push:
@@ -10,16 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Deploy admin-backend to server
+    - name: Deploy backend API to server
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_KEY }}
         script: |
-          cd /home/deploy/doors/admin-backend
+          cd /home/deploy/doors/backend
           git pull origin main
           cd /home/deploy/doors
-          docker compose build admin --no-cache
-          docker compose up -d admin
-          docker compose restart worker
+          docker compose build doors_shop_api --no-cache
+          docker compose restart doors_shop_api
