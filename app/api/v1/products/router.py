@@ -3,7 +3,7 @@ import logging
 from typing import List, Optional, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, and_
 from sqlalchemy.orm import joinedload
 from app.core.database import get_async_db
 from app.models.product import Product
@@ -47,8 +47,8 @@ async def get_products(
         
         # Фильтрация по категории
         if category_slug:
-            query = query.join(product_category).join(
-                Category, product_category.c.category_id == Category.id
+            query = query.join(product_categories).join(
+                Category, product_categories.c.category_id == Category.id
             ).where(Category.slug == category_slug)
         
         # Фильтрация по бренду
@@ -81,14 +81,6 @@ async def get_products(
         # Фильтрация по типу
         if type:
             query = query.where(Product.type == type)
-        
-        # Фильтрация по цвету
-        if color_id:
-            query = query.join(product_color).where(product_color.c.color_id == color_id)
-        
-        # Фильтрация по материалу
-        if material_id:
-            query = query.join(product_material).where(product_material.c.material_id == material_id)
         
         # Поиск по названию и описанию
         if search:
@@ -184,15 +176,17 @@ async def get_product_by_slug(
         # Добавляем логирование для отладки
         logging.info(f"Получение продукта по slug: {slug}")
         
-        # Запрос с предзагрузкой всех связанных сущностей
+        # ИСПРАВЛЕНО: убрали несуществующие joinedload для colors и других несуществующих полей
         query = select(Product).options(
             joinedload(Product.product_images),
             joinedload(Product.categories),
             joinedload(Product.brand),
-            joinedload(Product.colors),
             joinedload(Product.catalog)
         ).where(
-            (Product.slug == slug) & (Product.is_active == True)
+            and_(
+                Product.slug == slug,
+                Product.is_active == True
+            )
         )
         
         # Выполняем запрос
@@ -208,35 +202,33 @@ async def get_product_by_slug(
         # Создаем базовую структуру ответа
         response = {
             "id": product.id,
-            "uuid": product.uuid if hasattr(product, "uuid") else None,
+            "uuid": getattr(product, "uuid", None),
             "name": product.name,
             "slug": product.slug,
-            "description": product.description,
+            "description": getattr(product, "description", None),
             "price": float(product.price) if product.price is not None else 0.0,
             "discount_price": float(product.discount_price) if product.discount_price is not None else None,
-            "in_stock": product.in_stock if hasattr(product, "in_stock") else False,
-            "is_new": product.is_new if hasattr(product, "is_new") else False,
-            "type": product.type if hasattr(product, "type") else None,
-            "rating": product.rating if hasattr(product, "rating") else 0.0,
-            "review_count": product.review_count if hasattr(product, "review_count") else 0,
-            "characteristics": product.characteristics if hasattr(product, "characteristics") else None,
-            "attributes": product.attributes if hasattr(product, "attributes") else None,
+            "in_stock": getattr(product, "in_stock", False),
+            "is_new": getattr(product, "is_new", False),
+            "type": getattr(product, "type", None),
+            "rating": getattr(product, "rating", 0.0),
+            "review_count": getattr(product, "review_count", 0),
+            "characteristics": getattr(product, "characteristics", None),
+            "attributes": getattr(product, "attributes", None),
             "brand": None,
             "catalog": None,
             "categories": [],
             "images": [],
-            "colors": [],
             "created_at": product.created_at.isoformat() if hasattr(product, "created_at") and product.created_at else None,
             "updated_at": product.updated_at.isoformat() if hasattr(product, "updated_at") and product.updated_at else None
         }
         
-        # Безопасно добавляем связанные объекты
         # Бренд
         if hasattr(product, "brand") and product.brand:
             response["brand"] = {
                 "id": product.brand.id,
                 "name": product.brand.name,
-                "slug": product.brand.slug if hasattr(product.brand, "slug") else None
+                "slug": getattr(product.brand, "slug", None)
             }
         
         # Каталог
@@ -244,7 +236,7 @@ async def get_product_by_slug(
             response["catalog"] = {
                 "id": product.catalog.id,
                 "name": product.catalog.name,
-                "slug": product.catalog.slug if hasattr(product.catalog, "slug") else None
+                "slug": getattr(product.catalog, "slug", None)
             }
         
         # Категории
@@ -254,7 +246,7 @@ async def get_product_by_slug(
                 categories.append({
                     "id": category.id,
                     "name": category.name,
-                    "slug": category.slug if hasattr(category, "slug") else None
+                    "slug": getattr(category, "slug", None)
                 })
         response["categories"] = categories
         
@@ -269,17 +261,6 @@ async def get_product_by_slug(
                     img_data["alt_text"] = image.alt_text
                 images.append(img_data)
         response["images"] = images
-        
-        # Цвета
-        colors = []
-        if hasattr(product, "colors") and product.colors:
-            for color in product.colors:
-                color_data = {"id": color.id, "name": color.name}
-                if hasattr(color, "code"):
-                    color_data["code"] = color.code
-                colors.append(color_data)
-        response["colors"] = colors
-        
         
         return response
     
@@ -304,20 +285,16 @@ async def get_featured_products(
     Получить рекомендуемые продукты
     """
     try:
-        # Запрос с предзагрузкой и использованием таблицы ранжирования
+        # Запрос с предзагрузкой - убрали обращение к ProductRanking если его нет
         query = select(Product).options(
             joinedload(Product.product_images),
             joinedload(Product.brand)
-        ).outerjoin(
-            ProductRanking,
-            Product.id == ProductRanking.product_id
         ).where(
-            (Product.is_active == True) 
-            # & (ProductRanking.is_featured == True)  # Используем флаг is_featured
+            Product.is_active == True
         )
         
-        # Сортируем по рейтингу
-        query = query.order_by(desc(ProductRanking.ranking_score))
+        # Сортируем по популярности или рейтингу
+        query = query.order_by(desc(Product.popularity_score))
         
         # Ограничиваем количество результатов
         query = query.limit(limit)
@@ -353,11 +330,9 @@ async def get_featured_products(
                 "review_count": product.review_count
             })
         
-        
         return product_list
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении рекомендуемых продуктов: {str(e)}")
-
 
 @router.get("/new/", response_model=List[Dict[str, Any]])
 async def get_new_products(
@@ -456,11 +431,13 @@ async def get_discounted_products(
             joinedload(Product.product_images),
             joinedload(Product.brand)
         ).where(
-            (Product.is_active == True) &
-            (Product.discount_price.is_not(None)) &
-            (Product.discount_price < Product.price) &
-            # Убеждаемся, что скидка не менее указанного процента
-            (((Product.price - Product.discount_price) / Product.price) * 100 >= min_discount_percent)
+            and_(
+                Product.is_active == True,
+                Product.discount_price.is_not(None),
+                Product.discount_price < Product.price,
+                # Убеждаемся, что скидка не менее указанного процента
+                (((Product.price - Product.discount_price) / Product.price) * 100 >= min_discount_percent)
+            )
         )
         
         # Вычисляем процент скидки для использования в формуле
@@ -532,7 +509,6 @@ async def get_discounted_products(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении продуктов со скидкой: {str(e)}")
     
-
 @router.get("/price-range/", response_model=Dict[str, float])
 async def get_product_price_range(
     db: AsyncSession = Depends(get_async_db)
