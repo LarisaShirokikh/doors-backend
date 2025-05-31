@@ -34,7 +34,6 @@ async def get_featured_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str
             "duration": video.duration,
             "created_at": video.created_at,
             "is_featured": video.is_featured,
-            "auto_detected": video.auto_detected,
             "product": None
         }
         
@@ -42,7 +41,9 @@ async def get_featured_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str
         if video.product:
             main_image = None
             if hasattr(video.product, 'product_images') and video.product.product_images:
-                main_image = video.product.product_images[0].url if video.product.product_images else None
+                # Безопасный доступ к первому изображению
+                if len(video.product.product_images) > 0:
+                    main_image = video.product.product_images[0].url
                 
             video_data["product"] = {
                 "id": video.product.id,
@@ -62,6 +63,7 @@ async def get_featured_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str
         featured_videos.append(video_data)
     
     return featured_videos
+
 
 async def get_videos_by_product(db: AsyncSession, product_slug: str, limit: int = 10) -> List[Dict[str, Any]]:
     """Получение видео для конкретного продукта"""
@@ -104,6 +106,7 @@ async def get_videos_by_product(db: AsyncSession, product_slug: str, limit: int 
     
     return product_videos
 
+
 async def get_popular_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str, Any]]:
     """Получение популярных видео на основе рейтинга продукта"""
     query = (
@@ -111,7 +114,7 @@ async def get_popular_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str,
         .join(Product, Video.product_id == Product.id)
         .where(Video.is_active == True, Product.is_active == True)
         .order_by(desc(Product.popularity_score), desc(Product.rating), desc(Video.created_at))
-        .options(joinedload(Video.product))
+        .options(joinedload(Video.product).joinedload(Product.product_images))  
         .limit(limit)
     )
     
@@ -137,6 +140,12 @@ async def get_popular_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str,
         
         # Добавляем информацию о продукте, если есть
         if video.product:
+            # Безопасное получение главного изображения
+            main_image = None
+            if hasattr(video.product, 'product_images') and video.product.product_images:
+                if len(video.product.product_images) > 0:
+                    main_image = video.product.product_images[0].url
+            
             video_data["product"] = {
                 "id": video.product.id,
                 "uuid": video.product.uuid,
@@ -147,7 +156,7 @@ async def get_popular_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str,
                 "in_stock": video.product.in_stock,
                 "rating": video.product.rating,
                 "popularity_score": video.product.popularity_score,
-                "main_image": video.product.product_images[0].url if video.product.product_images else None
+                "main_image": main_image  
             }
         
         popular_videos.append(video_data)
