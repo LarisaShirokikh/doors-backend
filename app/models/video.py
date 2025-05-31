@@ -14,8 +14,6 @@ class Video(Base):
     thumbnail_url = Column(String, nullable=True)
     duration = Column(Float, nullable=True)  # в секундах
     
-    # Поля для связи с продуктом
-    product_slug = Column(String, nullable=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -23,8 +21,6 @@ class Video(Base):
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
     
-    # Поле для отслеживания автоопределения
-    auto_detected = Column(Boolean, default=False)
     
     # Связь с продуктом
     product = relationship("Product", back_populates="videos")
