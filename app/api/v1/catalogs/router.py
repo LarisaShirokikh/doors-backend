@@ -229,16 +229,19 @@ async def get_products_by_catalog_slug(
     db: AsyncSession = Depends(get_async_db)
 ):
     """
-    Получить продукты каталога по его slug
+    Получить продукты каталога по его slug с информацией о каталоге
     """
     try:
         # Сначала найдем каталог по slug
-        catalog_query = select(Catalog).where(
+        catalog_query = select(Catalog).options(
+            joinedload(Catalog.category),
+            joinedload(Catalog.brand)
+        ).where(
             (Catalog.slug == slug) & (Catalog.is_active == True)
         )
         
         catalog_result = await db.execute(catalog_query)
-        catalog = catalog_result.scalar_one_or_none()
+        catalog = catalog_result.unique().scalar_one_or_none()
         
         if not catalog:
             raise HTTPException(status_code=404, detail=f"Каталог со slug '{slug}' не найден")
@@ -248,16 +251,15 @@ async def get_products_by_catalog_slug(
 
         # Получаем товары и общее количество
         try:
-            # Добавляем детальное логирование
             logging.info(f"Fetching products for catalog with slug '{slug}' (ID: {catalog.id}), page {page}, per_page {per_page}")
             products = await product_crud.get_products_by_catalog(db=db, catalog_id=catalog.id, offset=offset, limit=per_page)
             total_products = await product_crud.count_products_in_catalog(db=db, catalog_id=catalog.id)
             logging.info(f"Found {len(products)} products out of {total_products} total")
         except Exception as e:
-            # Более детальное логирование ошибок
             logging.error(f"Error in product_crud methods: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Ошибка при получении товаров: {str(e)}")
 
+        # Формируем список продуктов
         products_list = []
         for product in products:
             main_image = None
@@ -283,8 +285,30 @@ async def get_products_by_catalog_slug(
                 "brand": product.brand.name if hasattr(product, 'brand') and product.brand else None
             })
 
+        # Формируем информацию о каталоге
+        catalog_info = {
+            "id": catalog.id,
+            "name": catalog.name,
+            "slug": catalog.slug,
+            "description": catalog.description,
+            "image": catalog.image,
+            "category": {
+                "id": catalog.category.id,
+                "name": catalog.category.name,
+                "slug": catalog.category.slug
+            } if catalog.category else None,
+            "brand": {
+                "id": catalog.brand.id,
+                "name": catalog.brand.name,
+                "slug": catalog.brand.slug
+            } if catalog.brand else None
+        }
+
+        # ИСПРАВЛЕНО: Возвращаем структуру, которую ожидает клиент
         return {
+            "catalog": catalog_info,
             "products": products_list,
+            "total": total_products,  # ← total на верхнем уровне
             "pagination": {
                 "page": page,
                 "per_page": per_page,
@@ -295,7 +319,6 @@ async def get_products_by_catalog_slug(
     except HTTPException:
         raise
     except Exception as e:
-        # Добавляем полный стек ошибки в лог
         logging.error(f"Unexpected error in get_products_by_catalog_slug for slug '{slug}': {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка при получении товаров каталога: {str(e)}")
     

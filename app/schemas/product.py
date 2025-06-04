@@ -3,8 +3,6 @@
 from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 from app.schemas.product_image import ProductImageCreate, ProductImage
-from app.schemas.color import Color
-from app.schemas.material import Material
 from app.schemas.brand import Brand
 from app.schemas.review import Review
 
@@ -83,8 +81,6 @@ class ProductDetail(ProductBase):
     updated_at: Optional[str] = None
     images: List[ProductImage] = []
     brand: Optional[Brand] = None
-    colors: List[Color] = []
-    materials: List[Material] = []
     reviews: List[Review] = []
     categories: List[Dict[str, Any]] = []
     primary_category: Optional[Dict[str, Any]] = None
