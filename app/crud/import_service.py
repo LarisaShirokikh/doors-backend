@@ -95,15 +95,8 @@ class ImportCRUD:
                         "description": row.get("description"),
                         "price": row.get("price", 0.0),
                         "in_stock": row.get("in_stock", True),
-                        "catalog_id": catalog.id,
-                        "characteristics": {}
+                        "catalog_id": catalog.id
                     }
-                    
-                    # Добавление характеристик, если они есть
-                    for col in df.columns:
-                        if col.startswith("char_") and not pd.isna(row.get(col)):
-                            char_name = col[5:]  # Убираем префикс "char_"
-                            product_data["characteristics"][char_name] = row.get(col)
                     
                     if existing_product:
                         # Обновление существующего товара

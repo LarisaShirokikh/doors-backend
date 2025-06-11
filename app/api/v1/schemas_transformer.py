@@ -71,7 +71,6 @@ async def transform_product_async(product_db, db: Optional[AsyncSession] = None)
         "catalogName": catalog_name,
         "category": category_name,
         "tags": getattr(product_db, 'tags', []),
-        "features": getattr(product_db, 'characteristics', {}),
         "recommended": getattr(product_db, 'is_recommended', False),
         "isNew": is_new,
         "hasDiscount": has_discount
@@ -102,8 +101,7 @@ def transform_product(product_db):
         "name": product_db.name,
         "description": product_db.description if hasattr(product_db, 'description') else "",
         "price": float(product_db.price),
-        "inStock": getattr(product_db, 'in_stock', True),
-        "features": getattr(product_db, 'characteristics', {})
+        "inStock": getattr(product_db, 'in_stock', True)
     }
 
 def transform_products(products_db):
