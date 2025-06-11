@@ -59,7 +59,6 @@ class ProductCRUD:
                 existing_product.description = product_data.description
                 existing_product.price = product_data.price
                 existing_product.in_stock = product_data.in_stock
-                existing_product.characteristics = product_data.characteristics
                 
                 # Получаем текущие изображения
                 current_images_query = select(ProductImage).where(ProductImage.product_id == existing_product.id)
@@ -136,8 +135,7 @@ class ProductCRUD:
                 description=product_data.description,
                 price=product_data.price,
                 in_stock=product_data.in_stock,
-                catalog_id=catalog.id,
-                characteristics=product_data.characteristics
+                catalog_id=catalog.id
             )
 
             db.add(new_product)

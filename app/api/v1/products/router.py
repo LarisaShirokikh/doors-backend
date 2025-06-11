@@ -1,6 +1,6 @@
-from datetime import datetime 
+
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_
@@ -9,10 +9,8 @@ from app.core.database import get_async_db
 from app.models.product import Product
 from app.models.catalog import Catalog
 from app.models.brand import Brand
-from app.models.product_image import ProductImage
 from app.models.attributes import product_categories
 from app.models.category import Category
-from app.models.product_ranking import ProductRanking
 
 router = APIRouter()
 
@@ -26,8 +24,6 @@ async def get_products(
     in_stock: Optional[bool] = None,
     is_new: Optional[bool] = None,
     type: Optional[str] = None,
-    color_id: Optional[int] = None,
-    material_id: Optional[int] = None,
     search: Optional[str] = None,
     sort: str = "smart",
     page: int = Query(1, ge=1),
@@ -213,8 +209,6 @@ async def get_product_by_slug(
             "type": getattr(product, "type", None),
             "rating": getattr(product, "rating", 0.0),
             "review_count": getattr(product, "review_count", 0),
-            "characteristics": getattr(product, "characteristics", None),
-            "attributes": getattr(product, "attributes", None),
             "brand": None,
             "catalog": None,
             "categories": [],

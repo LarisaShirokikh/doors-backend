@@ -91,13 +91,6 @@ class ImportLogCRUD:
                     if not catalog:
                         raise ValueError(f"Строка {index+2}: Каталог с ID {catalog_id} не найден")
                     
-                    # Подготовка характеристик товара из дополнительных колонок
-                    characteristics = {}
-                    for col in df.columns:
-                        if col.startswith('char_') and not pd.isna(row[col]):
-                            char_name = col[5:]  # Убираем префикс "char_"
-                            characteristics[char_name] = row[col]
-                    
                     # Поиск существующего товара по имени (или другому идентификатору)
                     product_name = row['name']
                     stmt = select(Product).where(
@@ -113,10 +106,7 @@ class ImportLogCRUD:
                         existing_product.price = float(row['price'])
                         existing_product.in_stock = bool(row.get('in_stock', True))
                         
-                        # Обновляем характеристики, если они есть
-                        if characteristics:
-                            existing_product.characteristics = characteristics
-                        
+
                         await db.commit()
                         stats["updated"] += 1
                     else:
@@ -126,8 +116,7 @@ class ImportLogCRUD:
                             description=row.get('description'),
                             price=float(row['price']),
                             in_stock=bool(row.get('in_stock', True)),
-                            catalog_id=catalog_id,
-                            characteristics=characteristics
+                            catalog_id=catalog_id
                         )
                         db.add(new_product)
                         await db.commit()

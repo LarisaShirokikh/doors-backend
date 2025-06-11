@@ -12,8 +12,6 @@ class ProductBase(BaseModel):
     price: float
     discount_price: Optional[float] = None
     in_stock: bool = True
-    characteristics: Optional[Dict[str, Any]] = None
-    attributes: Optional[Dict[str, Any]] = None
     is_active: bool = True
     is_new: bool = False
     type: Optional[str] = None
@@ -37,8 +35,6 @@ class ProductUpdate(BaseModel):
     price: Optional[float] = None
     discount_price: Optional[float] = None
     in_stock: Optional[bool] = None
-    characteristics: Optional[Dict[str, Any]] = None
-    attributes: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_new: Optional[bool] = None
     type: Optional[str] = None

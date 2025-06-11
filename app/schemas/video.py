@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+# app/schemas/video.py
+from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime
 
 class VideoBase(BaseModel):
@@ -8,49 +9,34 @@ class VideoBase(BaseModel):
     url: str
     thumbnail_url: Optional[str] = None
     duration: Optional[float] = None
+    product_id: Optional[int] = None
     is_active: bool = True
     is_featured: bool = False
 
-class VideoCreate(VideoBase):
-    product_id: Optional[int] = None
-    auto_detect_product: bool = True
-
-class VideoUpdate(BaseModel):
-    id: int
-    uuid: str
+class VideoCreate(BaseModel):
     title: str
     description: Optional[str] = None
     url: str
     thumbnail_url: Optional[str] = None
     duration: Optional[float] = None
-    
-    # Поля для продукта
-    product_slug: Optional[str] = None
     product_id: Optional[int] = None
-    
-    created_at: datetime
-    updated_at: Optional[datetime] = None
     is_active: bool = True
     is_featured: bool = False
-    auto_detected: Optional[bool] = False
 
-    class Config:
-        orm_mode = True
+class VideoUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    duration: Optional[float] = None
+    product_id: Optional[int] = None
+    is_active: Optional[bool] = None
+    is_featured: Optional[bool] = None
 
-class VideoInDB(VideoBase):
+class VideoResponse(VideoBase):
     id: int
     uuid: str
-    product_id: Optional[int] = None
-    product_slug: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    auto_detected: Optional[bool] = False
 
     class Config:
-        orm_mode = True
-
-class Video(VideoInDB):
-    pass
-
-class VideoWithProduct(Video):
-    product: Optional[Dict[str, Any]] = None
+        from_attributes = True
