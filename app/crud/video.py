@@ -162,3 +162,58 @@ async def get_popular_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str,
         popular_videos.append(video_data)
     
     return popular_videos
+
+async def get_latest_videos(db: AsyncSession, limit: int = 6) -> List[Dict[str, Any]]:
+    """Получение последних добавленных видео"""
+    query = (
+        select(Video)
+        .options(joinedload(Video.product).joinedload(Product.product_images))
+        .where(Video.is_active == True)
+        .order_by(desc(Video.created_at))
+        .limit(limit)
+    )
+    
+    result = await db.execute(query)
+    videos = result.unique().scalars().all()
+    
+    latest_videos = []
+    
+    for video in videos:
+        video_data = {
+            "id": video.id,
+            "uuid": video.uuid,
+            "title": video.title,
+            "description": video.description,
+            "url": video.url,
+            "thumbnail_url": video.thumbnail_url,
+            "duration": video.duration,
+            "created_at": video.created_at,
+            "is_featured": video.is_featured,
+            "product": None
+        }
+        
+        # Добавляем информацию о продукте, если есть
+        if video.product:
+            main_image = None
+            if hasattr(video.product, 'product_images') and video.product.product_images:
+                if len(video.product.product_images) > 0:
+                    main_image = video.product.product_images[0].url
+                
+            video_data["product"] = {
+                "id": video.product.id,
+                "uuid": video.product.uuid,
+                "name": video.product.name,
+                "slug": video.product.slug,
+                "price": video.product.price,
+                "discount_price": video.product.discount_price,
+                "in_stock": video.product.in_stock,
+                "is_active": video.product.is_active,
+                "is_new": video.product.is_new,
+                "rating": video.product.rating,
+                "review_count": video.product.review_count,
+                "main_image": main_image
+            }
+        
+        latest_videos.append(video_data)
+    
+    return latest_videos

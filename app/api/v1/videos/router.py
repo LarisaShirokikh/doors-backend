@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_db
-from app.crud.video import get_featured_videos, get_popular_videos, get_videos_by_product
+from app.crud.video import get_featured_videos, get_latest_videos, get_popular_videos, get_videos_by_product
 
 
 router = APIRouter()
@@ -42,4 +42,26 @@ async def get_popular_videos_api(
     Получить популярные видео на основе рейтинга продукта
     """
     videos = await get_popular_videos(db, limit)
+    return videos
+
+@router.get("/latest/", response_model=List[Dict[str, Any]])
+async def get_latest_videos_api(
+    limit: int = Query(6, ge=1, le=20),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Получить последние добавленные видео
+    """
+    videos = await get_latest_videos(db, limit)
+    return videos
+
+@router.get("/recent/", response_model=List[Dict[str, Any]])
+async def get_recent_videos_api(
+    limit: int = Query(6, ge=1, le=20),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Получить недавние видео (алиас для latest)
+    """
+    videos = await get_latest_videos(db, limit)
     return videos

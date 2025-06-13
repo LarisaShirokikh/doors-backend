@@ -9,6 +9,7 @@ from app.api.v1.brands.router import router as brands_router
 from app.api.v1.videos.router import router as video_router
 from app.api.v1.search.router import router as search_router
 from app.api.v1.analytics.router import router as analytics_router
+from app.api.v1.posts.router import router as posts_router
 
 
 api_router = APIRouter()
@@ -23,3 +24,4 @@ api_router.include_router(brands_router, prefix="/brands", tags=["brands"])
 api_router.include_router(video_router, prefix="/videos", tags=["videos"])
 api_router.include_router(search_router, prefix="/search", tags=["search"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+api_router.include_router(posts_router, prefix="/posts", tags=["posts"])

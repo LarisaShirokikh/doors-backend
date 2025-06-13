@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -70,9 +70,9 @@ async def get_categories(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении категорий: {str(e)}")
 
-@router.get("/{category_id}/products/", response_model=Dict[str, Any])
+@router.get("/{category_identifier}/products/", response_model=Dict[str, Any])
 async def get_products_by_category(
-    category_id: int,
+    category_identifier: str,  # ИСПРАВЛЕНО: Теперь принимает строку (может быть ID или slug)
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     sort_by: str = "created_at",
@@ -80,9 +80,26 @@ async def get_products_by_category(
     db: AsyncSession = Depends(get_async_db)
 ):
     """
-    Получить продукты для категории по ID с пагинацией и сортировкой
+    Получить продукты для категории по ID или slug с пагинацией и сортировкой
     """
     try:
+        # Определяем, передан ID (число) или slug (строка)
+        category_id = None
+        
+        if category_identifier.isdigit():
+            # Если передан числовой ID
+            category_id = int(category_identifier)
+        else:
+            # Если передан slug, находим ID категории
+            category_query = select(Category.id).where(
+                (Category.slug == category_identifier) & (Category.is_active == True)
+            )
+            category_result = await db.execute(category_query)
+            category_id = category_result.scalar_one_or_none()
+            
+            if not category_id:
+                raise HTTPException(status_code=404, detail=f"Категория с slug '{category_identifier}' не найдена")
+        
         # Используем CRUD-метод для получения продуктов
         result = await product_crud.get_products_by_category(
             db=db,
@@ -103,9 +120,53 @@ async def get_products_by_category(
         raise
     except Exception as e:
         # Логируем ошибку для отладки
-        print(f"Ошибка при получении продуктов для категории {category_id}: {str(e)}")
+        print(f"Ошибка при получении продуктов для категории {category_identifier}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка при получении продуктов: {str(e)}")
 
+# ДОБАВЛЕН: Отдельный эндпоинт специально для slug (более явный)
+@router.get("/slug/{slug}/products/", response_model=Dict[str, Any])
+async def get_products_by_category_slug(
+    slug: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    sort_by: str = "created_at",
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Получить продукты для категории по slug (явная версия)
+    """
+    try:
+        # Находим ID категории по slug
+        category_query = select(Category.id).where(
+            (Category.slug == slug) & (Category.is_active == True)
+        )
+        category_result = await db.execute(category_query)
+        category_id = category_result.scalar_one_or_none()
+        
+        if not category_id:
+            raise HTTPException(status_code=404, detail=f"Категория с slug '{slug}' не найдена")
+        
+        # Используем CRUD-метод для получения продуктов
+        result = await product_crud.get_products_by_category(
+            db=db,
+            category_id=category_id,
+            page=page,
+            per_page=per_page,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        
+        if result is None:
+            raise HTTPException(status_code=404, detail="Категория не найдена")
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Ошибка при получении продуктов для категории slug '{slug}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении продуктов: {str(e)}")
 
 @router.get("/{slug}", response_model=Dict[str, Any])
 async def get_category_by_slug(

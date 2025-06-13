@@ -46,9 +46,6 @@ async def get_async_db():
             await session.close()
 
 
-# app/core/database.py
-
-from contextlib import asynccontextmanager
 
 async def get_async_db_for_scheduler():
     """
