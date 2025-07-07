@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 дней
     
     # CORS
-    ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080", "https://yourdomain.com"]
+    ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080", "https://dverin.pro"]
     
     # Database
     POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "db")
