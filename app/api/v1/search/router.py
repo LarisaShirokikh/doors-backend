@@ -27,7 +27,7 @@ async def get_search_suggestions(
         sort="popular"
     )
     
-    # Преобразуем продукты в подсказки для поиска
+    
     suggestions = []
     for product in products:
         image = None

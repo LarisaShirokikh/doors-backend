@@ -543,5 +543,57 @@ class ProductCRUD:
         result = await db.execute(count_query)
         return result.scalar() or 0
     
-# Создаем экземпляр CRUD для использования в приложении
+    # Добавьте эту функцию в класс ProductCRUD в app/crud/product.py
+
+async def search_products(
+    self,
+    db: AsyncSession,
+    query: str,
+    limit: int = 10,
+    sort: str = "popular"
+) -> List[Product]:
+    """
+    Поиск продуктов по названию и описанию
+    """
+    if not query or len(query.strip()) < 2:
+        return []
+    
+    search_term = query.strip()
+    
+    # Строим запрос с поиском по названию и описанию
+    search_query = select(Product).options(
+        joinedload(Product.images),
+        joinedload(Product.catalog)
+    ).where(
+        or_(
+            Product.name.ilike(f"%{search_term}%"),
+            Product.description.ilike(f"%{search_term}%")
+        )
+    )
+    
+    # Добавляем сортировку
+    if sort == "popular" and hasattr(Product, 'popularity_score'):
+        search_query = search_query.order_by(desc(Product.popularity_score))
+    elif sort == "price":
+        search_query = search_query.order_by(Product.price)
+    elif sort == "name":
+        search_query = search_query.order_by(Product.name)
+    else:
+        # По умолчанию сортируем по релевантности (сначала точные совпадения в названии)
+        search_query = search_query.order_by(
+            # Сначала точные совпадения в названии
+            func.position(func.lower(search_term), func.lower(Product.name)).desc(),
+            # Потом по ID (новые товары)
+            desc(Product.id)
+        )
+    
+    search_query = search_query.limit(limit)
+    
+    result = await db.execute(search_query)
+    products = result.unique().scalars().all()
+    
+    self.logger.info(f"Найдено {len(products)} продуктов по запросу '{search_term}'")
+    
+    return products
+
 product = ProductCRUD()
