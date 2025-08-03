@@ -7,10 +7,7 @@ from sqlalchemy import select, func, desc, and_
 from sqlalchemy.orm import joinedload
 from app.core.database import get_async_db
 from app.models.product import Product
-from app.models.catalog import Catalog
-from app.models.brand import Brand
-from app.models.attributes import product_categories
-from app.models.category import Category
+from app.crud.product import product as product_crud
 
 router = APIRouter()
 
@@ -34,129 +31,21 @@ async def get_products(
     Получить список продуктов с фильтрацией, сортировкой и пагинацией
     """
     try:
-        # Базовый запрос с предзагрузкой данных для оптимизации
-        query = select(Product).options(
-            joinedload(Product.product_images),
-            joinedload(Product.categories),
-            joinedload(Product.brand)
-        ).where(Product.is_active == True)
-        
-        # Фильтрация по категории
-        if category_slug:
-            query = query.join(product_categories).join(
-                Category, product_categories.c.category_id == Category.id
-            ).where(Category.slug == category_slug)
-        
-        # Фильтрация по бренду
-        if brand_slug:
-            if ',' in brand_slug:
-                brand_slugs = brand_slug.split(',')
-                query = query.join(Brand).where(Brand.slug.in_(brand_slugs))
-            else:
-                query = query.join(Brand).where(Brand.slug == brand_slug)
-        
-        # Фильтрация по каталогу
-        if catalog_slug:
-            query = query.join(Catalog, Product.catalog_id == Catalog.id).where(Catalog.slug == catalog_slug)
-        
-        # Фильтрация по цене
-        if min_price is not None:
-            query = query.where(Product.price >= min_price)
-        
-        if max_price is not None:
-            query = query.where(Product.price <= max_price)
-        
-        # Фильтрация по наличию
-        if in_stock is not None:
-            query = query.where(Product.in_stock == in_stock)
-        
-        # Фильтрация по новинкам
-        if is_new is not None:
-            query = query.where(Product.is_new == is_new)
-        
-        # Фильтрация по типу
-        if type:
-            query = query.where(Product.type == type)
-        
-        # Поиск по названию и описанию
-        if search:
-            search_term = f"%{search}%"
-            query = query.where(
-                (Product.name.ilike(search_term)) | 
-                (Product.description.ilike(search_term))
-            )
-        
-        # Подсчет общего количества товаров
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await db.execute(count_query)
-        total = total_result.scalar() or 0
-        
-        # Сортировка
-        if sort == "price_asc":
-            query = query.order_by(Product.price.asc())
-        elif sort == "price_desc":
-            query = query.order_by(Product.price.desc())
-        elif sort == "newest":
-            query = query.order_by(desc(Product.created_at))
-        elif sort == "name_asc":
-            query = query.order_by(Product.name.asc())
-        elif sort == "name_desc":
-            query = query.order_by(Product.name.desc())
-        else:  # по умолчанию "popular"
-            query = query.order_by(desc(Product.popularity_score))
-        
-        # Применяем пагинацию
-        query = query.offset((page - 1) * per_page).limit(per_page)
-        
-        # Выполняем запрос
-        result = await db.execute(query)
-        products = result.unique().scalars().all()
-        
-        # Формируем ответ
-        product_list = []
-        for product in products:
-            # Находим основное изображение
-            main_image = None
-            if product.product_images:
-                for image in product.product_images:
-                    if image.is_main:
-                        main_image = image.url
-                        break
-                
-                # Если нет отмеченного как основное, берем первое
-                if not main_image and product.product_images:
-                    main_image = product.product_images[0].url
-            
-            # Получаем категории
-            categories = []
-            if product.categories:
-                categories = [{"id": c.id, "name": c.name, "slug": c.slug} for c in product.categories]
-            
-            product_list.append({
-                "id": product.id,
-                "uuid": product.uuid,
-                "name": product.name,
-                "slug": product.slug,
-                "price": float(product.price),
-                "discount_price": float(product.discount_price) if product.discount_price else None,
-                "in_stock": product.in_stock,
-                "is_new": product.is_new,
-                "rating": product.rating,
-                "review_count": product.review_count,
-                "image": main_image,
-                "brand": product.brand.name if product.brand else None,
-                "categories": categories
-            })
-        
-        # Формируем метаданные пагинации
-        return {
-            "products": product_list,
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "last_page": (total + per_page - 1) // per_page
-        }
-    
+        return await product_crud.get_filtered_products_paginated(
+            db=db,
+            category_slug=category_slug,
+            brand_slug=brand_slug,
+            catalog_slug=catalog_slug,
+            min_price=min_price,
+            max_price=max_price,
+            in_stock=in_stock,
+            is_new=is_new,
+            type=type,
+            search=search,
+            sort=sort,
+            page=page,
+            per_page=per_page
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении списка продуктов: {str(e)}")
 
@@ -169,10 +58,7 @@ async def get_product_by_slug(
     Получить детальную информацию о продукте по slug
     """
     try:
-        # Добавляем логирование для отладки
-        logging.info(f"Получение продукта по slug: {slug}")
-        
-        # ИСПРАВЛЕНО: убрали несуществующие joinedload для colors и других несуществующих полей
+    
         query = select(Product).options(
             joinedload(Product.product_images),
             joinedload(Product.categories),
@@ -225,7 +111,6 @@ async def get_product_by_slug(
                 "slug": getattr(product.brand, "slug", None)
             }
         
-        # Каталог
         if hasattr(product, "catalog") and product.catalog:
             response["catalog"] = {
                 "id": product.catalog.id,
@@ -233,7 +118,6 @@ async def get_product_by_slug(
                 "slug": getattr(product.catalog, "slug", None)
             }
         
-        # Категории
         categories = []
         if hasattr(product, "categories") and product.categories:
             for category in product.categories:
@@ -244,7 +128,6 @@ async def get_product_by_slug(
                 })
         response["categories"] = categories
         
-        # Изображения
         images = []
         if hasattr(product, "product_images") and product.product_images:
             for image in product.product_images:
@@ -259,15 +142,12 @@ async def get_product_by_slug(
         return response
     
     except HTTPException:
-        # Пробрасываем ошибки HTTP без изменений
         raise
     except Exception as e:
-        # Логируем полный трейс ошибки для отладки
         import traceback
         error_detail = str(e) + "\n" + traceback.format_exc()
         logging.error(f"Ошибка при получении продукта по slug {slug}: {error_detail}")
         
-        # Возвращаем общую ошибку клиенту
         raise HTTPException(status_code=500, detail=f"Ошибка при получении продукта: {str(e)}")
 
 @router.get("/featured/", response_model=List[Dict[str, Any]])
@@ -275,56 +155,8 @@ async def get_featured_products(
     limit: int = Query(8, ge=1, le=20),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """
-    Получить рекомендуемые продукты
-    """
     try:
-        # Запрос с предзагрузкой - убрали обращение к ProductRanking если его нет
-        query = select(Product).options(
-            joinedload(Product.product_images),
-            joinedload(Product.brand)
-        ).where(
-            Product.is_active == True
-        )
-        
-        # Сортируем по популярности или рейтингу
-        query = query.order_by(desc(Product.popularity_score))
-        
-        # Ограничиваем количество результатов
-        query = query.limit(limit)
-        
-        # Выполняем запрос
-        result = await db.execute(query)
-        products = result.unique().scalars().all()
-        
-        # Формируем ответ
-        product_list = []
-        for product in products:
-            # Находим основное изображение
-            main_image = None
-            if product.product_images:
-                for image in product.product_images:
-                    if image.is_main:
-                        main_image = image.url
-                        break
-                
-                if not main_image and product.product_images:
-                    main_image = product.product_images[0].url
-            
-            product_list.append({
-                "id": product.id,
-                "uuid": product.uuid,
-                "name": product.name,
-                "slug": product.slug,
-                "price": float(product.price),
-                "discount_price": float(product.discount_price) if product.discount_price else None,
-                "image": main_image,
-                "brand": product.brand.name if product.brand else None,
-                "rating": product.rating,
-                "review_count": product.review_count
-            })
-        
-        return product_list
+        return await product_crud.get_featured_products(db=db, limit=limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении рекомендуемых продуктов: {str(e)}")
 
@@ -436,9 +268,6 @@ async def get_discounted_products(
         
         # Вычисляем процент скидки для использования в формуле
         discount_percent = (((Product.price - Product.discount_price) / Product.price) * 100).label('discount_percent')
-        
-        # Создаем формулу для оценки выгодности предложения
-        # Учитываем: размер скидки, рейтинг товара и его популярность
         deal_score = (
             # Размер скидки (0-100%)
             (discount_percent * 0.5) + 

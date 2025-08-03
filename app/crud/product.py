@@ -28,6 +28,206 @@ class ProductCRUD:
         
         return await transform_products_async(products, db)
 
+    async def get_featured_products(self, db: AsyncSession, limit: int = 8) -> List[Dict[str, Any]]:
+        
+        try:
+            # Запрос с предзагрузкой
+            query = select(Product).options(
+                joinedload(Product.product_images),
+                joinedload(Product.brand)
+            ).where(Product.is_active == True)
+            
+            # Случайная сортировка
+            query = self._apply_random_order(query)
+            
+            # Ограничиваем количество результатов
+            query = query.limit(limit)
+            
+            # Выполняем запрос
+            result = await db.execute(query)
+            products = result.unique().scalars().all()
+            
+            # Формируем ответ
+            product_list = []
+            for product in products:
+                # Находим основное изображение
+                main_image = None
+                if product.product_images:
+                    for image in product.product_images:
+                        if image.is_main:
+                            main_image = image.url
+                            break
+                    
+                    if not main_image and product.product_images:
+                        main_image = product.product_images[0].url
+                
+                product_list.append({
+                    "id": product.id,
+                    "uuid": product.uuid,
+                    "name": product.name,
+                    "slug": product.slug,
+                    "price": float(product.price),
+                    "discount_price": float(product.discount_price) if product.discount_price else None,
+                    "image": main_image,
+                    "brand": product.brand.name if product.brand else None,
+                    "rating": product.rating,
+                    "review_count": product.review_count
+                })
+            
+            self.logger.info(f"Получено {len(product_list)} рекомендуемых продуктов")
+            return product_list
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка при получении рекомендуемых продуктов: {str(e)}", exc_info=True)
+            raise
+
+    async def get_filtered_products_paginated(
+        self,
+        db: AsyncSession,
+        category_slug: Optional[str] = None,
+        brand_slug: Optional[str] = None,
+        catalog_slug: Optional[str] = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        in_stock: Optional[bool] = None,
+        is_new: Optional[bool] = None,
+        type: Optional[str] = None,
+        search: Optional[str] = None,
+        sort: str = "smart",
+        page: int = 1,
+        per_page: int = 12
+    ) -> Dict[str, Any]:
+        """
+        Получить отфильтрованные продукты с пагинацией
+        """
+        try:
+            # Базовый запрос с предзагрузкой данных для оптимизации
+            query = select(Product).options(
+                joinedload(Product.product_images),
+                joinedload(Product.categories),
+                joinedload(Product.brand)
+            ).where(Product.is_active == True)
+            
+            # Фильтрация по категории
+            if category_slug:
+                query = query.join(product_categories).join(
+                    Category, product_categories.c.category_id == Category.id
+                ).where(Category.slug == category_slug)
+            
+            # Фильтрация по бренду
+            if brand_slug:
+                if ',' in brand_slug:
+                    brand_slugs = brand_slug.split(',')
+                    query = query.join(Brand).where(Brand.slug.in_(brand_slugs))
+                else:
+                    query = query.join(Brand).where(Brand.slug == brand_slug)
+            
+            # Фильтрация по каталогу
+            if catalog_slug:
+                query = query.join(Catalog, Product.catalog_id == Catalog.id).where(Catalog.slug == catalog_slug)
+            
+            # Фильтрация по цене
+            if min_price is not None:
+                query = query.where(Product.price >= min_price)
+            
+            if max_price is not None:
+                query = query.where(Product.price <= max_price)
+            
+            # Фильтрация по наличию
+            if in_stock is not None:
+                query = query.where(Product.in_stock == in_stock)
+            
+            # Фильтрация по новинкам
+            if is_new is not None:
+                query = query.where(Product.is_new == is_new)
+            
+            # Фильтрация по типу
+            if type:
+                query = query.where(Product.type == type)
+            
+            # Поиск по названию и описанию
+            if search:
+                search_term = f"%{search}%"
+                query = query.where(
+                    (Product.name.ilike(search_term)) | 
+                    (Product.description.ilike(search_term))
+                )
+            
+            # Подсчет общего количества товаров
+            count_query = select(func.count()).select_from(query.subquery())
+            total_result = await db.execute(count_query)
+            total = total_result.scalar() or 0
+            
+            # Сортировка
+            if sort == "price_asc":
+                query = query.order_by(Product.price.asc())
+            elif sort == "price_desc":
+                query = query.order_by(Product.price.desc())
+            elif sort == "newest":
+                query = query.order_by(desc(Product.created_at))
+            elif sort == "name_asc":
+                query = query.order_by(Product.name.asc())
+            elif sort == "name_desc":
+                query = query.order_by(Product.name.desc())
+            else:  # по умолчанию "popular"
+                query = query.order_by(desc(Product.popularity_score))
+            
+            # Применяем пагинацию
+            query = query.offset((page - 1) * per_page).limit(per_page)
+            
+            # Выполняем запрос
+            result = await db.execute(query)
+            products = result.unique().scalars().all()
+            
+            # Формируем ответ
+            product_list = []
+            for product in products:
+                # Находим основное изображение
+                main_image = None
+                if product.product_images:
+                    for image in product.product_images:
+                        if image.is_main:
+                            main_image = image.url
+                            break
+                    
+                    # Если нет отмеченного как основное, берем первое
+                    if not main_image and product.product_images:
+                        main_image = product.product_images[0].url
+                
+                # Получаем категории
+                categories = []
+                if product.categories:
+                    categories = [{"id": c.id, "name": c.name, "slug": c.slug} for c in product.categories]
+                
+                product_list.append({
+                    "id": product.id,
+                    "uuid": product.uuid,
+                    "name": product.name,
+                    "slug": product.slug,
+                    "price": float(product.price),
+                    "discount_price": float(product.discount_price) if product.discount_price else None,
+                    "in_stock": product.in_stock,
+                    "is_new": product.is_new,
+                    "rating": product.rating,
+                    "review_count": product.review_count,
+                    "image": main_image,
+                    "brand": product.brand.name if product.brand else None,
+                    "categories": categories
+                })
+            
+            # Формируем метаданные пагинации
+            return {
+                "products": product_list,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "last_page": (total + per_page - 1) // per_page
+            }
+        
+        except Exception as e:
+            self.logger.error(f"Ошибка при получении отфильтрованных продуктов: {str(e)}", exc_info=True)
+            raise
+
     async def create_product(self, db: AsyncSession, product_data: ProductCreate, auto_commit: bool = False):
         """
         Создать новый продукт или обновить существующий
@@ -543,57 +743,56 @@ class ProductCRUD:
         result = await db.execute(count_query)
         return result.scalar() or 0
     
-    # Добавьте эту функцию в класс ProductCRUD в app/crud/product.py
 
-async def search_products(
-    self,
-    db: AsyncSession,
-    query: str,
-    limit: int = 10,
-    sort: str = "popular"
-) -> List[Product]:
-    """
-    Поиск продуктов по названию и описанию
-    """
-    if not query or len(query.strip()) < 2:
-        return []
-    
-    search_term = query.strip()
-    
-    # Строим запрос с поиском по названию и описанию
-    search_query = select(Product).options(
-        joinedload(Product.images),
-        joinedload(Product.catalog)
-    ).where(
-        or_(
-            Product.name.ilike(f"%{search_term}%"),
-            Product.description.ilike(f"%{search_term}%")
+    async def search_products(
+        self,
+        db: AsyncSession,
+        query: str,
+        limit: int = 10,
+        sort: str = "popular"
+    ) -> List[Product]:
+        """
+        Поиск продуктов по названию и описанию
+        """
+        if not query or len(query.strip()) < 2:
+            return []
+        
+        search_term = query.strip()
+        
+        # Строим запрос с поиском по названию и описанию
+        search_query = select(Product).options(
+            joinedload(Product.images),
+            joinedload(Product.catalog)
+        ).where(
+            or_(
+                Product.name.ilike(f"%{search_term}%"),
+                Product.description.ilike(f"%{search_term}%")
+            )
         )
-    )
-    
-    # Добавляем сортировку
-    if sort == "popular" and hasattr(Product, 'popularity_score'):
-        search_query = search_query.order_by(desc(Product.popularity_score))
-    elif sort == "price":
-        search_query = search_query.order_by(Product.price)
-    elif sort == "name":
-        search_query = search_query.order_by(Product.name)
-    else:
-        # По умолчанию сортируем по релевантности (сначала точные совпадения в названии)
-        search_query = search_query.order_by(
-            # Сначала точные совпадения в названии
-            func.position(func.lower(search_term), func.lower(Product.name)).desc(),
-            # Потом по ID (новые товары)
-            desc(Product.id)
-        )
-    
-    search_query = search_query.limit(limit)
-    
-    result = await db.execute(search_query)
-    products = result.unique().scalars().all()
-    
-    self.logger.info(f"Найдено {len(products)} продуктов по запросу '{search_term}'")
-    
-    return products
+        
+        # Добавляем сортировку
+        if sort == "popular" and hasattr(Product, 'popularity_score'):
+            search_query = search_query.order_by(desc(Product.popularity_score))
+        elif sort == "price":
+            search_query = search_query.order_by(Product.price)
+        elif sort == "name":
+            search_query = search_query.order_by(Product.name)
+        else:
+            # По умолчанию сортируем по релевантности (сначала точные совпадения в названии)
+            search_query = search_query.order_by(
+                # Сначала точные совпадения в названии
+                func.position(func.lower(search_term), func.lower(Product.name)).desc(),
+                # Потом по ID (новые товары)
+                desc(Product.id)
+            )
+        
+        search_query = search_query.limit(limit)
+        
+        result = await db.execute(search_query)
+        products = result.unique().scalars().all()
+        
+        self.logger.info(f"Найдено {len(products)} продуктов по запросу '{search_term}'")
+        
+        return products
 
 product = ProductCRUD()

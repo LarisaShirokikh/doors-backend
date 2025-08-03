@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -86,6 +86,66 @@ class CatalogCRUD:
         await db.commit()
         return True
     
+   
+
+    async def get_catalogs_list_paginated(
+        self,
+        db: AsyncSession,
+        page: int = 1,
+        per_page: int = 20,
+        is_active: bool = True,
+        sort: str = "name"
+    ) -> Dict[str, Any]:
+        """
+        Получить список каталогов с пагинацией
+        """
+        try:
+            query = select(Catalog)
+            
+            if is_active:
+                query = query.where(Catalog.is_active == True)
+            
+            count_query = select(func.count()).select_from(query.subquery())
+            count_result = await db.execute(count_query)
+            total = count_result.scalar() or 0
+            
+            # Сортировка
+            if sort == "name_desc":
+                query = query.order_by(desc(Catalog.name))
+            elif sort == "newest":
+                query = query.order_by(desc(Catalog.created_at))
+            elif sort == "random":
+                query = query.order_by(func.random())
+            else:  # name по умолчанию
+                query = query.order_by(Catalog.name)
+            
+            query = query.offset((page - 1) * per_page).limit(per_page)
+            
+            result = await db.execute(query)
+            catalogs = result.scalars().all()
+            
+            catalog_list = []
+            for catalog in catalogs:
+                catalog_list.append({
+                    "id": catalog.id,
+                    "name": catalog.name,
+                    "slug": catalog.slug,
+                    "description": catalog.description,
+                    "image": catalog.image,
+                    "brand_id": catalog.brand_id
+                })
+            
+            return {
+                "items": catalog_list,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total + per_page - 1) // per_page
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка при получении списка каталогов: {str(e)}", exc_info=True)
+            raise
     
 
 catalog = CatalogCRUD()

@@ -429,30 +429,20 @@ async def get_popular_catalogs(
     
 @router.get("/list/", response_model=List[Dict[str, Any]])
 async def get_catalogs_list(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    sort: str = Query("name", regex="^(name|name_desc|newest|random)$"),
     is_active: bool = True,
     db: AsyncSession = Depends(get_async_db)
 ):
     try:
-        # Прямой запрос вместо catalog.get_catalogs
-        query = select(Catalog)
-        if is_active:
-            query = query.where(Catalog.is_active == True)
-        query = query.order_by(Catalog.name)
-        
-        result = await db.execute(query)
-        catalogs = result.scalars().all()
-        
-        return [
-            {
-                "id": c.id,
-                "name": c.name,
-                "slug": c.slug,
-                "description": c.description,
-                "image": c.image,
-                "brand_id": c.brand_id
-            }
-            for c in catalogs
-        ]
+        return await catalog.get_catalogs_list_paginated(
+            db=db,
+            page=page,
+            per_page=per_page,
+            is_active=is_active,
+            sort=sort
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении списка каталогов: {str(e)}")
 

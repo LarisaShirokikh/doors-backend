@@ -28,8 +28,7 @@ async def get_brands(
         if is_active:
             query = query.where(Brand.is_active == True)
         
-        # Сортировка по имени
-        query = query.order_by(Brand.name)
+        query = query.order_by(desc(Brand.id))
         
         # Выполняем запрос
         result = await db.execute(query)
@@ -68,9 +67,6 @@ async def get_brands_list(
     include_counts: bool = True,
     db: AsyncSession = Depends(get_async_db)
 ):
-    """
-    Получить список брендов (алиас для get_brands)
-    """
     return await get_brands(is_active, db)
 
 @router.get("/popular/", response_model=List[Dict[str, Any]])
@@ -119,7 +115,6 @@ async def get_popular_brands(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении популярных брендов: {str(e)}")
 
-# РОУТЫ ПО ID (СНАЧАЛА БОЛЕЕ СПЕЦИФИЧНЫЕ)
 @router.get("/{brand_id:int}/catalogs/", response_model=List[Dict[str, Any]])
 async def get_brand_catalogs_by_id(
     brand_id: int,
@@ -350,7 +345,6 @@ async def get_brand_by_id(
     """
     return await get_brand_by_id_internal(brand_id, include_products, include_categories, product_limit, db)
 
-# РОУТЫ ПО SLUG (ПОСЛЕ РОУТОВ ПО ID)
 @router.get("/{slug}/catalogs/", response_model=List[Dict[str, Any]])
 async def get_brand_catalogs_by_slug(
     slug: str, 
@@ -539,7 +533,6 @@ async def get_brand_by_slug(
     """
     return await get_brand_by_slug_internal(slug, include_products, include_categories, product_limit, db)
 
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 async def get_brand_by_id_internal(
     brand_id: int,
     include_products: bool = False,
