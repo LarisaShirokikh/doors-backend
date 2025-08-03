@@ -17,43 +17,27 @@ async def get_brands(
     is_active: bool = True,
     db: AsyncSession = Depends(get_async_db)
 ):
-    """
-    Получить список всех брендов
-    """
+    
     try:
-        # Базовый запрос
         query = select(Brand)
         
         # Применяем фильтры
         if is_active:
             query = query.where(Brand.is_active == True)
         
-        query = query.order_by(desc(Brand.id))
-        
-        # Выполняем запрос
         result = await db.execute(query)
         brands = result.scalars().all()
         
-        # Формируем ответ
+        # ТОНКИЙ роутер - без подсчета товаров
         brand_list = []
         for brand in brands:
-            # Считаем количество товаров бренда
-            count_query = select(func.count()).select_from(Product).where(
-                and_(
-                    Product.brand_id == brand.id,
-                    Product.is_active == True
-                )
-            )
-            count_result = await db.execute(count_query)
-            product_count = count_result.scalar() or 0
-            
             brand_list.append({
                 "id": brand.id,
                 "name": brand.name,
                 "slug": brand.slug,
-                "logo_url": brand.logo_url,
-                "website": brand.website,
-                "product_count": product_count
+                "logo_url": getattr(brand, 'logo_url', None),
+                "website": getattr(brand, 'website', None),
+                "product_count": getattr(brand, 'product_count', 0)  # Из поля в БД
             })
         
         return brand_list
