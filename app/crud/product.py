@@ -37,8 +37,7 @@ class ProductCRUD:
                 joinedload(Product.brand)
             ).where(Product.is_active == True)
             
-            # Случайная сортировка
-            query = self._apply_random_order(query)
+            query = query.order_by(func.random())
             
             # Ограничиваем количество результатов
             query = query.limit(limit)
