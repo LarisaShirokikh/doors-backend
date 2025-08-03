@@ -1,6 +1,7 @@
 
 import logging
 from typing import Any, Dict, List, Optional
+from app.models.brand import Brand
 from sqlalchemy import desc, func, select, inspect, or_
 from sqlalchemy.dialects.postgresql import INTERVAL, INTEGER
 from sqlalchemy import Tuple as SqlTuple
@@ -22,7 +23,7 @@ class ProductCRUD:
         """
         Получить все продукты
         """
-        stmt = select(Product).options(joinedload(Product.images))
+        stmt = select(Product).options(joinedload(Product.product_images))
         result = await db.execute(stmt)
         products = result.unique().scalars().all()
         
@@ -469,7 +470,7 @@ class ProductCRUD:
         Получить рекомендуемые продукты
         """
         query = select(Product).options(
-            joinedload(Product.images),
+            joinedload(Product.product_images),
             joinedload(Product.catalog).joinedload(Catalog.category)
         )
         
@@ -489,7 +490,7 @@ class ProductCRUD:
         Получить продукты со скидкой
         """
         query = select(Product).options(
-            joinedload(Product.images),
+            joinedload(Product.product_images),
             joinedload(Product.catalog).joinedload(Catalog.category)
         )
         
@@ -510,7 +511,7 @@ class ProductCRUD:
         Получить новые продукты
         """
         query = select(Product).options(
-            joinedload(Product.images),
+            joinedload(Product.product_images),
             joinedload(Product.catalog).joinedload(Catalog.category)
         ).order_by(desc(Product.id))
         
@@ -760,7 +761,7 @@ class ProductCRUD:
         
         # Строим запрос с поиском по названию и описанию
         search_query = select(Product).options(
-            joinedload(Product.images),
+            joinedload(Product.product_images),
             joinedload(Product.catalog)
         ).where(
             or_(
