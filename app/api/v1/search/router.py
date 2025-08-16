@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.core.database import get_async_db
 from app.crud.product import product as product_crud
-from app.schemas.search import SearchSuggestionsResponse
+from app.schemas.search import SearchResponse, SearchSuggestionsResponse
 
 router = APIRouter()
 
