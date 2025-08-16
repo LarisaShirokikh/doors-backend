@@ -561,11 +561,7 @@ class ProductCRUD:
         price_range: Optional[tuple[float, float]] = None,
         in_stock_only: bool = False
     ):
-        """
-        Получить продукты для категории по ID с интеллектуальной сортировкой и фильтрацией
-        """
         try:
-            # Проверяем существование категории
             category_query = select(Category).where(Category.id == category_id)
             category_result = await db.execute(category_query)
             category = category_result.scalar_one_or_none()
@@ -574,7 +570,6 @@ class ProductCRUD:
                 self.logger.warning(f"Категория с ID {category_id} не найдена")
                 return None  # Категория не найдена
             
-            # Базовый запрос продуктов из этой категории
             products_query = select(Product).options(
                 joinedload(Product.product_images),
                 joinedload(Product.brand)
@@ -584,7 +579,6 @@ class ProductCRUD:
                 product_categories.c.category_id == category_id
             )
             
-            # Применяем дополнительные фильтры
             if in_stock_only:
                 products_query = products_query.where(Product.in_stock == True)
                 
@@ -730,7 +724,6 @@ class ProductCRUD:
             self.logger.error(f"Ошибка при получении продуктов для категории {category_id}: {str(e)}", exc_info=True)
             raise
     
-    # Also fix the count_products_in_catalog method
     async def count_products_in_catalog(
         self,  # Add self parameter
         db: AsyncSession,
@@ -743,56 +736,208 @@ class ProductCRUD:
         result = await db.execute(count_query)
         return result.scalar() or 0
     
-
-    async def search_products(
+    async def search_products_paginated(
         self,
         db: AsyncSession,
         query: str,
-        limit: int = 10,
-        sort: str = "popular"
-    ) -> List[Product]:
-        """
-        Поиск продуктов по названию и описанию
-        """
-        if not query or len(query.strip()) < 2:
-            return []
+        page: int = 1,
+        per_page: int = 24,
+        sort: str = "popular",
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        category_id: Optional[str] = None,
+        brand_slug: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Поиск товаров с пагинацией и полной обработкой результата"""
         
-        search_term = query.strip()
+        # Валидация
+        if not query or len(query.strip()) < 1:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "pages": 0
+            }
         
-        # Строим запрос с поиском по названию и описанию
-        search_query = select(Product).options(
+        # Подготовка параметров
+        offset = (page - 1) * per_page
+        search_query = query.strip()
+        category_ids = []
+        if category_id:
+            category_ids = [int(id.strip()) for id in category_id.split(',') if id.strip().isdigit()]
+        
+        brand_slugs = []
+        if brand_slug:
+            brand_slugs = [slug.strip() for slug in brand_slug.split(',') if slug.strip()]
+        
+        # Базовый запрос
+        query_stmt = select(Product).options(
             joinedload(Product.product_images),
-            joinedload(Product.catalog)
-        ).where(
-            or_(
-                Product.name.ilike(f"%{search_term}%"),
-                Product.description.ilike(f"%{search_term}%")
-            )
-        )
+            joinedload(Product.brand),
+            joinedload(Product.categories)
+        ).where(Product.is_active == True)
         
-        # Добавляем сортировку
-        if sort == "popular" and hasattr(Product, 'popularity_score'):
-            search_query = search_query.order_by(desc(Product.popularity_score))
-        elif sort == "price":
-            search_query = search_query.order_by(Product.price)
-        elif sort == "name":
-            search_query = search_query.order_by(Product.name)
+        if len(search_query) <= 2:
+            starts_with_pattern = f"{search_query}%"
+            contains_pattern = f"%{search_query}%"
+            
+            query_stmt = query_stmt.where(
+                or_(
+                    Product.name.ilike(starts_with_pattern),
+                    Product.name.ilike(contains_pattern),
+                    Product.description.ilike(contains_pattern)
+                )
+            )
         else:
-            # По умолчанию сортируем по релевантности (сначала точные совпадения в названии)
-            search_query = search_query.order_by(
-                # Сначала точные совпадения в названии
-                func.position(func.lower(search_term), func.lower(Product.name)).desc(),
-                # Потом по ID (новые товары)
-                desc(Product.id)
+            search_term = f"%{search_query}%"
+            query_stmt = query_stmt.where(
+                or_(
+                    Product.name.ilike(search_term),
+                    Product.description.ilike(search_term)
+                )
             )
         
-        search_query = search_query.limit(limit)
+        # Фильтры
+        if min_price:
+            query_stmt = query_stmt.where(Product.price >= min_price)
+        if max_price:
+            query_stmt = query_stmt.where(Product.price <= max_price)
+        if category_ids:
+            query_stmt = query_stmt.join(product_categories).where(
+                product_categories.c.category_id.in_(category_ids)
+            )
+        if brand_slugs:
+            query_stmt = query_stmt.join(Brand).where(Brand.slug.in_(brand_slugs))
         
-        result = await db.execute(search_query)
+        # Подсчет общего количества
+        count_stmt = select(func.count()).select_from(query_stmt.subquery())
+        total_result = await db.execute(count_stmt)
+        total = total_result.scalar() or 0
+        
+        # Сортировка
+        if sort == "price_asc":
+            query_stmt = query_stmt.order_by(Product.price.asc())
+        elif sort == "price_desc":
+            query_stmt = query_stmt.order_by(Product.price.desc())
+        elif sort == "newest":
+            query_stmt = query_stmt.order_by(desc(Product.created_at))
+        elif sort == "name":
+            query_stmt = query_stmt.order_by(Product.name.asc())
+        else:  # popular
+            query_stmt = query_stmt.order_by(desc(Product.popularity_score))
+        
+        # Пагинация
+        query_stmt = query_stmt.offset(offset).limit(per_page)
+        
+        # Выполнение запроса
+        result = await db.execute(query_stmt)
         products = result.unique().scalars().all()
         
-        self.logger.info(f"Найдено {len(products)} продуктов по запросу '{search_term}'")
+        # Преобразование в схемы
+        items = [self._convert_product_to_response(product) for product in products]
+        pages = (total + per_page - 1) // per_page
         
-        return products
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages
+        }
+
+    async def get_search_suggestions(
+        self,
+        db: AsyncSession,
+        query: str,
+        limit: int = 5
+    ) -> Dict[str, List[Dict]]:
+        
+        if len(query) < 2:
+            return {"suggestions": []}
+        
+        search_term = f"%{query}%"
+        stmt = select(Product).options(
+            joinedload(Product.product_images),
+            joinedload(Product.categories)
+        ).where(
+            Product.is_active == True
+        ).where(
+            Product.name.ilike(search_term)
+        ).order_by(desc(Product.popularity_score)).limit(limit)
+        
+        result = await db.execute(stmt)
+        products = result.unique().scalars().all()
+        
+        suggestions = []
+        for product in products:
+            image = None
+            if product.product_images:
+                for img in product.product_images:
+                    if img.is_main:
+                        image = img.url
+                        break
+                if not image:
+                    image = product.product_images[0].url
+            
+            category = None
+            if product.categories:
+                category = product.categories[0].name
+            
+            suggestions.append({
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "image": image,
+                "category": category
+            })
+        
+        return {"suggestions": suggestions}
+
+    def _convert_product_to_response(self, product) -> Dict[str, Any]:
+        main_image = None
+        if product.product_images:
+            for img in product.product_images:
+                if img.is_main:
+                    main_image = img.url
+                    break
+            if not main_image:
+                main_image = product.product_images[0].url
+        
+        # Обработка бренда
+        brand = None
+        if product.brand:
+            brand = {
+                "id": product.brand.id,
+                "name": product.brand.name,
+                "slug": product.brand.slug
+            }
+        
+        # Обработка категорий
+        categories = []
+        if product.categories:
+            categories = [
+                {
+                    "id": cat.id,
+                    "name": cat.name,
+                    "slug": cat.slug
+                }
+                for cat in product.categories
+            ]
+        
+        return {
+            "id": product.id,
+            "uuid": product.uuid,
+            "name": product.name,
+            "slug": product.slug,
+            "price": float(product.price),
+            "discount_price": float(product.discount_price) if product.discount_price else None,
+            "main_image": main_image,
+            "brand": brand,
+            "categories": categories,
+            "is_active": product.is_active,
+            "in_stock": product.in_stock,
+            "created_at": product.created_at.isoformat() if hasattr(product, 'created_at') and product.created_at else None
+        }
 
 product = ProductCRUD()
