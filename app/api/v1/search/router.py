@@ -47,36 +47,4 @@ async def get_search_suggestions(
     if len(q) < 2:
         return {"suggestions": []}
     
-    # Используем существующую функцию поиска в репозитории
-    products = await product_crud.search_products(
-        db=db,
-        query=q,
-        limit=limit,
-        sort="popular"
-    )
-    
-    
-    suggestions = []
-    for product in products:
-        image = None
-        if hasattr(product, 'image'):
-            if isinstance(product.image, list) and product.image:
-                image = product.image[0]
-            else:
-                image = product.image
-                
-        category = None
-        if hasattr(product, 'catalog') and product.catalog:
-            category = product.catalog.name
-        elif hasattr(product, 'category') and product.category:
-            category = product.category.name
-            
-        suggestions.append({
-            "id": product.id,
-            "name": product.name,
-            "slug": product.slug,
-            "image": image,
-            "category": category
-        })
-    
-    return {"suggestions": suggestions}
+    return await product_crud.get_search_suggestions(db=db, query=q, limit=limit)
